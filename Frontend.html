@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Browser with C++ Backend + Assembly</title>
+    <style>
+        body { font-family: monospace; background: #0a0f1e; color: #e0e0e0; margin: 2em; }
+        #controls { background: #1e2434; padding: 1em; border-radius: 8px; }
+        input { width: 500px; padding: 0.5em; background: #0a0f1e; color: white; border: 1px solid #3a4050; border-radius: 4px; }
+        button { padding: 0.5em 1em; background: #2c3e66; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #3e5a8a; }
+        #output { margin-top: 1em; padding: 1em; background: #141a28; border-radius: 8px; white-space: pre-wrap; }
+        #status { font-size: 0.9em; margin-bottom: 1em; color: #aaa; }
+        h1 { color: #8ab3ff; }
+        .error { color: #ff8a8a; }
+        .success { color: #8aff8a; }
+    </style>
+</head>
+<body>
+    <h1>🌐 Browser with C++ backend + inline assembly</h1>
+    <div id="status">🔌 Checking backend connection...</div>
+    <div id="controls">
+        <input type="text" id="url" value="https://example.com" size="60">
+        <button id="go" disabled>Load website (C++ fetches, assembly uppercases title)</button>
+    </div>
+    <div id="output">Waiting for backend...</div>
+
+    <script>
+        const backendBase = "http://localhost:8080";
+        const fetchUrlEndpoint = backendBase + "/fetch?url=";
+        const goButton = document.getElementById('go');
+        const urlInput = document.getElementById('url');
+        const outputDiv = document.getElementById('output');
+        const statusDiv = document.getElementById('status');
+
+        async function checkBackend() {
+            try {
+                const res = await fetch(backendBase + "/fetch?url=https://example.com", { method: 'GET', mode: 'cors' });
+                if (res.ok) {
+                    statusDiv.innerHTML = "✅ Backend is running on " + backendBase;
+                    goButton.disabled = false;
+                    outputDiv.innerHTML = "Ready. Enter a URL and click the button.";
+                } else {
+                    throw new Error("HTTP " + res.status);
+                }
+            } catch (err) {
+                statusDiv.innerHTML = "❌ Cannot connect to backend at " + backendBase + ". Make sure you compiled and ran the C++ backend (./backend)";
+                goButton.disabled = true;
+                outputDiv.innerHTML = "<span class='error'>Error: " + err.message + "</span>";
+            }
+        }
+
+        goButton.onclick = async () => {
+            let url = urlInput.value.trim();
+            if (!url) return;
+            outputDiv.innerHTML = `⏳ Asking C++ backend to fetch ${url} ...`;
+            goButton.disabled = true;
+            try {
+                const response = await fetch(fetchUrlEndpoint + encodeURIComponent(url));
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${text}`);
+                }
+                const data = await response.json();
+                if (data.error) {
+                    outputDiv.innerHTML = `<span class='error'>❌ Error: ${data.error}</span>`;
+                } else {
+                    outputDiv.innerHTML = `✅ Page title (uppercased by x86 assembly in C++ backend):<br><strong style="font-size:1.2em">${data.title}</strong>`;
+                }
+            } catch (err) {
+                outputDiv.innerHTML = `<span class='error'>❌ Failed to fetch: ${err.message}<br><br>Make sure the backend is running (./backend) and accepts connections on port 8080.</span>`;
+            } finally {
+                goButton.disabled = false;
+            }
+        };
+
+        checkBackend();
+    </script>
+</body>
+</html>
